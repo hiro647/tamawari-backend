@@ -1,0 +1,22 @@
+{
+  "name": "tamawari-backend",
+  "version": "1.0.0",
+  "description": "たまわり — 卵シェア購入マッチングアプリ バックエンドAPI",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "migrate": "node migrations/run.js",
+    "seed": "node migrations/seed.js"
+  },
+  "dependencies": {
+    "@fastify/cors": "^9.0.1",
+    "@fastify/jwt": "^8.0.1",
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.4.5",
+    "fastify": "^4.26.0",
+    "firebase-admin": "^12.0.0",
+    "pg": "^8.11.3",
+    "pino-pretty": "^11.0.0"
+  }
+}

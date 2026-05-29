@@ -6,6 +6,13 @@
 const fp = require("fastify-plugin");
 const db = require("../db");
 
+// request.user に載せる前に機密フィールドを除去する
+function sanitizeUser(row) {
+  if (!row) return row;
+  const { password_hash, firebase_uid, ...safe } = row;
+  return safe;
+}
+
 let firebaseAdmin = null;
 
 async function initFirebase() {
@@ -27,12 +34,29 @@ async function authPlugin(fastify) {
   await initFirebase();
 
   // リクエストに user を付与するデコレーター
-  fastify.decorateRequest("user", null);
+  // ※ @fastify/jwt が request.user を既に提供するため、ここでは宣言しない
+  //   （authenticate 内で request.user に DB のユーザー行を代入する）
 
   // 認証を要求するフック
   fastify.decorate("authenticate", async function (request, reply) {
     try {
-      if (process.env.AUTH_MODE === "dev") {
+      const mode = process.env.AUTH_MODE || "dev";
+
+      if (mode === "jwt") {
+        // ── メール＋パスワード（自前JWT）モード ─────────
+        let decoded;
+        try {
+          decoded = await request.jwtVerify();   // Authorization: Bearer <token> を検証
+        } catch (e) {
+          return reply.code(401).send({ error: "ログインが必要です" });
+        }
+        const result = await db.query("SELECT * FROM users WHERE id = $1", [decoded.sub]);
+        if (!result.rows[0]) {
+          return reply.code(401).send({ error: "ユーザーが見つかりません" });
+        }
+        request.user = sanitizeUser(result.rows[0]);
+
+      } else if (mode === "dev") {
         // ── 開発モード ──────────────────────────────
         const devUserId = request.headers["x-dev-user-id"];
         if (!devUserId) {
@@ -42,7 +66,7 @@ async function authPlugin(fastify) {
         if (!result.rows[0]) {
           return reply.code(401).send({ error: "ユーザーが見つかりません" });
         }
-        request.user = result.rows[0];
+        request.user = sanitizeUser(result.rows[0]);
 
       } else {
         // ── Firebase モード ──────────────────────────
@@ -55,7 +79,7 @@ async function authPlugin(fastify) {
         if (!result.rows[0]) {
           return reply.code(401).send({ error: "ユーザー登録が必要です。POST /users を呼んでください" });
         }
-        request.user = result.rows[0];
+        request.user = sanitizeUser(result.rows[0]);
       }
     } catch (err) {
       reply.code(401).send({ error: "認証に失敗しました", detail: err.message });

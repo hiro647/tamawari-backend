@@ -18,10 +18,21 @@ async function start() {
     origin: true,
   });
 
+  // JWT（メール＋パスワード認証で使用）
+  const jwtSecret = process.env.JWT_SECRET;
+  if ((process.env.AUTH_MODE || "dev") === "jwt" && !jwtSecret) {
+    fastify.log.warn("⚠️ AUTH_MODE=jwt なのに JWT_SECRET が未設定です。必ず環境変数を設定してください");
+  }
+  await fastify.register(require("@fastify/jwt"), {
+    secret: jwtSecret || "dev-insecure-secret-change-me",
+    sign: { expiresIn: "30d" },   // トークンの有効期限（テスト中はログインが切れにくいよう長め）
+  });
+
   // 認証プラグイン
   await fastify.register(require("./plugins/auth"));
 
   // ── ルート登録 ──
+  await fastify.register(require("./routes/auth"));
   await fastify.register(require("./routes/users"));
   await fastify.register(require("./routes/listings"));
   await fastify.register(require("./routes/applications"));
